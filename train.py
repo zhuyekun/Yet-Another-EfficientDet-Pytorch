@@ -129,7 +129,7 @@ def train(opt):
         if opt.load_weights.endswith('.pth'):
             weights_path = opt.load_weights
         else:
-            weights_path = get_last_weights(opt.saved_path)
+            weights_path = get_last_weights(opt.saved_path,opt.compound_coef)
         try:
             last_step = int(os.path.basename(weights_path).split('_')[-1].split('.')[0])
         except:

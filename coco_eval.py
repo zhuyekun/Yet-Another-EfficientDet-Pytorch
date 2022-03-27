@@ -168,7 +168,7 @@ def _eval(coco_gt, image_ids, pred_json_path):
     coco_eval = COCOeval(coco_gt, coco_pred, "bbox")
     coco_eval.params.imgIds = image_ids
     coco_eval.params.catIds = 1
-    coco_eval.params.iouThrs = [0.2]
+    coco_eval.params.iouThrs = [0.5]
     coco_eval.evaluate()
     coco_eval.accumulate()
     coco_eval.summarize()

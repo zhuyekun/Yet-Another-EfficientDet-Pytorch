@@ -80,8 +80,11 @@ def aspectaware_resize_padding(image, width, height, interpolation=None, means=N
 def preprocess(
     *image_path, max_size=512, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
 ):
-    ori_imgs = [cv2.imread(img_path) for img_path in image_path]
-    normalized_imgs = [(img[..., ::-1] / 255 - mean) / std for img in ori_imgs]
+    ori_imgs = [
+        cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB) for img_path in image_path
+    ]
+    # ori_imgs = [cv2.imread(img_path) for img_path in image_path]
+    normalized_imgs = [(img / 255 - mean) / std for img in ori_imgs]
     imgs_meta = [
         aspectaware_resize_padding(img, max_size, max_size, means=None)
         for img in normalized_imgs
@@ -269,7 +272,7 @@ class CustomDataParallel(nn.DataParallel):
         ], [kwargs] * len(devices)
 
 
-def get_last_weights(weights_path,c):
+def get_last_weights(weights_path, c):
     weights_path = glob(weights_path + f"/efficientdet-d{c}_*.pth")
     weights_path = sorted(
         weights_path, key=lambda x: int(x.rsplit("_")[-1].rsplit(".")[0]), reverse=True
@@ -461,7 +464,7 @@ def plot_one_box(img, coord, label=None, score=None, color=None, line_thickness=
     color = color
     c1, c2 = (int(coord[0]), int(coord[1])), (int(coord[2]), int(coord[3]))
     cv2.rectangle(img, c1, c2, color, thickness=tl)
-    if label:
+    if label and score:
         tf = max(tl - 2, 1)  # font thickness
         s_size = cv2.getTextSize(
             str("{:.0%}".format(score)), 0, fontScale=float(tl) / 3, thickness=tf
@@ -472,6 +475,21 @@ def plot_one_box(img, coord, label=None, score=None, color=None, line_thickness=
         cv2.putText(
             img,
             "{}: {:.0%}".format(label, score),
+            (c1[0], c1[1] - 2),
+            0,
+            float(tl) / 3,
+            [0, 0, 0],
+            thickness=tf,
+            lineType=cv2.FONT_HERSHEY_SIMPLEX,
+        )
+    elif label and not score:
+        tf = max(tl - 2, 1)  # font thickness
+        t_size = cv2.getTextSize(label, 0, fontScale=float(tl) / 3, thickness=tf)[0]
+        c2 = c1[0] + t_size[0] + 15, c1[1] - t_size[1] - 3
+        cv2.rectangle(img, c1, c2, color, -1)  # filled
+        cv2.putText(
+            img,
+            "{}".format(label),
             (c1[0], c1[1] - 2),
             0,
             float(tl) / 3,

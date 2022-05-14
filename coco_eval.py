@@ -44,6 +44,8 @@ ap.add_argument(
 )
 ap.add_argument("--cuda", type=boolean_string, default=True)
 ap.add_argument("--device", type=int, default=0)
+ap.add_argument("-f", "--force_input_size", type=int, default=0)
+ap.add_argument("-s", "--show_summary", type=boolean_string, default=True)
 ap.add_argument("--float16", type=boolean_string, default=False)
 ap.add_argument(
     "--override",
@@ -60,6 +62,8 @@ gpu = args.device
 use_float16 = args.float16
 override_prev_results = args.override
 project_name = args.project
+force_input_size = args.force_input_size
+show_summary = args.show_summary
 weights_path = (
     f"weights/efficientdet-d{compound_coef}.pth"
     if args.weights is None
@@ -76,11 +80,25 @@ obj_list = params["obj_list"]
 input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536, 1536]
 
 
-def evaluate_coco(img_path, set_name, image_ids, coco, model, threshold=0.05):
+def evaluate_coco(
+    img_path,
+    set_name,
+    image_ids,
+    coco,
+    model,
+    threshold=0.2,
+    force_input_size=None,
+):
     results = []
 
     regressBoxes = BBoxTransform()
     clipBoxes = ClipBoxes()
+
+    input_size = (
+        input_sizes[compound_coef]
+        if force_input_size is None
+        else input_sizes[force_input_size]
+    )
 
     for image_id in tqdm(image_ids):
         image_info = coco.loadImgs(image_id)[0]
@@ -88,7 +106,7 @@ def evaluate_coco(img_path, set_name, image_ids, coco, model, threshold=0.05):
 
         ori_imgs, framed_imgs, framed_metas = preprocess(
             image_path,
-            max_size=input_sizes[compound_coef],
+            max_size=input_size,
             mean=params["mean"],
             std=params["std"],
         )
@@ -159,7 +177,7 @@ def evaluate_coco(img_path, set_name, image_ids, coco, model, threshold=0.05):
     json.dump(results, open(filepath, "w"), indent=4)
 
 
-def _eval(coco_gt, image_ids, pred_json_path):
+def _eval(coco_gt, image_ids, pred_json_path, show_summary=True):
     # load results in COCO evaluation tool
     coco_pred = coco_gt.loadRes(pred_json_path)
 
@@ -167,11 +185,14 @@ def _eval(coco_gt, image_ids, pred_json_path):
     print("BBox")
     coco_eval = COCOeval(coco_gt, coco_pred, "bbox")
     coco_eval.params.imgIds = image_ids
-    coco_eval.params.catIds = 1
-    coco_eval.params.iouThrs = [0.5]
+    # coco_eval.params.catIds = [3]
+    coco_eval.params.iouThrs = [0.2]
     coco_eval.evaluate()
     coco_eval.accumulate()
-    coco_eval.summarize()
+    if show_summary:
+        coco_eval.summarize()
+
+    # return coco_eval.eval
 
 
 if __name__ == "__main__":
@@ -201,6 +222,13 @@ if __name__ == "__main__":
             if use_float16:
                 model.half()
 
-        evaluate_coco(VAL_IMGS, SET_NAME, image_ids, coco_gt, model)
+        evaluate_coco(
+            VAL_IMGS,
+            SET_NAME,
+            image_ids,
+            coco_gt,
+            model,
+            force_input_size=force_input_size,
+        )
 
-    _eval(coco_gt, image_ids, f"{SET_NAME}_bbox_results.json")
+    _eval(coco_gt, image_ids, f"{SET_NAME}_bbox_results.json", show_summary)

@@ -276,7 +276,7 @@ def get_annotations_without_similar_anchors(
     # get bounding boxes adapted to the input size
     bboxes = get_bboxes_adapted_to_input_size(instances, input_size)
     # filter if size < min size
-    have_size_gr_min_size = np.prod(bboxes, axis=1) > min_size ** 2
+    have_size_gr_min_size = np.prod(bboxes, axis=1) > min_size**2
     bboxes = bboxes[have_size_gr_min_size]
     annotations = [
         ann
@@ -349,7 +349,7 @@ def get_optimal_anchors_ratios(
     # resize the bounding boxes before filtering using images scale factors
     bboxes = get_bboxes_adapted_to_input_size(instances, input_size)
     # filter the bounding boxes that are too small
-    bboxes_ge_min_size = np.prod(bboxes, axis=1) > min_size ** 2
+    bboxes_ge_min_size = np.prod(bboxes, axis=1) > min_size**2
     logger.info(
         f"[{datetime.now().strftime('%m/%d %H:%M:%S')}] "
         f"Discarding {(~bboxes_ge_min_size).sum()} bounding boxes with size "
@@ -455,6 +455,118 @@ def get_optimal_anchors_ratios(
         f"[{datetime.now().strftime('%m/%d %H:%M:%S')}] "
         f"K-Means anchors ratios: {anchors_ratios}"
     )
+    logger.info(
+        f"\tAvg. IoU between bboxes and their most similar K-Means anchors, "
+        "no norm. (both ratios and sizes matter): "
+        f"{average_iou(bboxes, anchors) * 100:.2f}%"
+    )
+    logger.info(
+        f"\tNum. bboxes without similar K-Means anchors (IoU < {iou_threshold}): "
+        f" {num_bboxes_without_similar_anchors}/{num_anns} "
+        f"({perc_without:.2f}%)"
+    )
+    if default_perc_without > perc_without:
+        logger.info(
+            f"[{datetime.now().strftime('%m/%d %H:%M:%S')}] "
+            f"K-Means anchors have an IoU < {100 * iou_threshold:.0f}% with bboxes in "
+            f"{default_perc_without - perc_without:.2f}% less cases than the default "
+            "anchors, you should consider to use them"
+        )
+    else:
+        logger.info(
+            f"[{datetime.now().strftime('%m/%d %H:%M:%S')}] "
+            f"Default anchors have an IoU < {100 * iou_threshold:.0f}% with bboxes in "
+            f"{perc_without - default_perc_without:.2f}% less cases than the K-Means "
+            "anchors, you should consider stick with them"
+        )
+    return anchors_ratios
+
+
+def get_optimal_anchors_ratios_without_log(
+    coef,
+    instances,
+    anchors_sizes,
+    input_size,
+    normalizes_bboxes=True,
+    num_runs=1,
+    num_anchors_ratios=3,
+    max_iter=300,
+    iou_threshold=0.5,
+    min_size=0,
+    decimals=1,
+    default_anchors_ratios=[(0.7, 1.4), (1.0, 1.0), (1.4, 0.7)],
+):
+    # resize the bounding boxes before filtering using images scale factors
+    bboxes = get_bboxes_adapted_to_input_size(instances, input_size)
+    # filter the bounding boxes that are too small
+    bboxes_ge_min_size = np.prod(bboxes, axis=1) > min_size**2
+    bboxes = bboxes[bboxes_ge_min_size]
+    num_bboxes = len(bboxes)
+    assert num_bboxes, "There is no bounding box left after filtering by size."
+
+    if normalizes_bboxes:
+        normalized_bboxes = bboxes / np.sqrt(bboxes.prod(axis=1, keepdims=True))
+    else:
+        normalized_bboxes = bboxes
+
+    avg_iou_perc_list = []
+    anchors_ratios_list = []
+    pbar = tqdm(
+        range(num_runs),
+        desc=f"[{datetime.now().strftime('%m/%d %H:%M:%S')}] "
+        f"K-Means ({num_runs} run{'s' if num_runs > 1 else ''})",
+        ncols=88,
+    )
+    for _ in pbar:
+        ar = kmeans(
+            normalized_bboxes, num_clusters=num_anchors_ratios, max_iter=max_iter
+        )
+        avg_iou_perc = average_iou(normalized_bboxes, ar) * 100
+        if np.isfinite(avg_iou_perc):
+            anchors_ratios_list.append(ar)
+            avg_iou_perc_list.append(avg_iou_perc)
+        else:
+            logger.info(
+                f"[{datetime.now().strftime('%m/%d %H:%M:%S')}] "
+                f"Skipping a run due to numerical errors in K-Means"
+            )
+
+    assert len(anchors_ratios_list), "No run was successful, try increasing num_runs."
+
+    avg_iou_argmax = np.argmax(avg_iou_perc_list)
+    # scaling to make the product of anchors ratios equal to 1
+    anchors_ratios = anchors_ratios_list[avg_iou_argmax] / np.sqrt(
+        anchors_ratios_list[avg_iou_argmax].prod(axis=1, keepdims=True)
+    )
+    # rounding of values ​​(only for aesthetic reasons)
+    anchors_ratios = anchors_ratios.round(decimals)
+    # from array to list of tuple (standard format)
+    anchors_ratios = sorted([tuple(ar) for ar in anchors_ratios])
+    # logger.info(
+    #     f"\tRuns avg. IoU: {np.mean(avg_iou_perc_list):.2f}% ± "
+    #     f"{np.std(avg_iou_perc_list):.2f}% "
+    #     f"(mean ± std. dev. of {len(anchors_ratios_list)} runs, "
+    #     f"{num_runs - len(anchors_ratios_list)} skipped)"
+    # )
+    logger.info(
+        f"anchor_scales_coef:{coef}"
+        "\tAvg. IoU: "
+        f"{avg_iou_perc_list[avg_iou_argmax]:.2f}%"
+    )
+    num_anns = len(instances["annotations"])
+    # get K-Means anchors
+    anchors = generate_anchors_given_ratios_and_sizes(anchors_ratios, anchors_sizes)
+    # get annotations without similar K-Means anchors
+    annotations = get_annotations_without_similar_anchors(
+        instances,
+        anchors_ratios,
+        anchors_sizes,
+        input_size,
+        iou_threshold=iou_threshold,
+        min_size=min_size,
+    )
+    num_bboxes_without_similar_anchors = len(annotations)
+    perc_without = 100 * num_bboxes_without_similar_anchors / num_anns
     logger.info(
         f"\tAvg. IoU between bboxes and their most similar K-Means anchors, "
         "no norm. (both ratios and sizes matter): "

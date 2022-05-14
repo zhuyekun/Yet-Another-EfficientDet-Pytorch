@@ -25,11 +25,11 @@ from utils.utils import (
 
 compound_coef = 0
 force_input_size = None  # set None to use default size
-img_path = "/home/mazheng/waste-detection/Yet-Another-EfficientDet-Pytorch-master/datasets/waste-detection/val/952.jpg"
+img_path = "/home/mazheng/waste-detection/Yet-Another-EfficientDet-Pytorch/datasets/detection/val/207.jpg"
 
 # replace this part with your project's anchor config
-anchor_ratios = [(1.2, 0.8), (1.5, 0.7), (1.8, 0.6)]
-anchor_scales = [2**0 / 4, 2 ** (1.0 / 3.0) / 4, 2 ** (2.0 / 3.0) / 4]
+anchor_ratios = [(0.6, 1.5), (1.2, 0.8), (1.7, 0.6)]
+anchor_scales = [2**0 / 2, 2 ** (1.0 / 3.0) / 2, 2 ** (2.0 / 3.0) / 2]
 
 threshold = 0.2
 iou_threshold = 0.2
@@ -49,7 +49,7 @@ cudnn.benchmark = True
 #             'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink',
 #             'refrigerator', '', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier',
 #             'toothbrush']
-obj_list = ["spiledmaterial"]
+obj_list = ["spiledmaterial", "person", "crack", "potholes"]
 
 color_list = standard_to_bgr(STANDARD_COLORS)
 # tf bilinear interpolation is different from any other's, just make do
@@ -74,7 +74,7 @@ model = EfficientDetBackbone(
 )
 model.load_state_dict(
     torch.load(
-        f"weights/waste-detection/efficientdet-d0_90_resized_anchor.pth",
+        f"weights/detection/anchor_resized/efficientdet-d0_2-2-2_resized.pth",
         map_location="cpu",
     )
 )
@@ -161,13 +161,13 @@ with torch.no_grad():
     print(f"{tact_time} seconds, {1 / tact_time} FPS, @batch_size 1")
 
     # uncomment this if you want a extreme fps test
-    # print('test2: model inferring only')
-    # print('inferring images for batch_size 32 for 10 times...')
-    # t1 = time.time()
-    # x = torch.cat([x] * 32, 0)
-    # for _ in range(10):
-    #     _, regression, classification, anchors = model(x)
-    #
-    # t2 = time.time()
-    # tact_time = (t2 - t1) / 10
-    # print(f'{tact_time} seconds, {32 / tact_time} FPS, @batch_size 32')
+    print("test2: model inferring only")
+    print("inferring images for batch_size 32 for 10 times...")
+    t1 = time.time()
+    x = torch.cat([x] * 32, 0)
+    for _ in range(10):
+        _, regression, classification, anchors = model(x)
+
+    t2 = time.time()
+    tact_time = (t2 - t1) / 10
+    print(f"{tact_time} seconds, {32 / tact_time} FPS, @batch_size 32")

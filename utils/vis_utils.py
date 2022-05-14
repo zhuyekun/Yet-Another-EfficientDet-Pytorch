@@ -1,25 +1,26 @@
-from enum import Flag
-import cv2
-from pycocotools.coco import COCO
-from matplotlib import pyplot as plt
 from collections import defaultdict
-from pathlib import Path, PureWindowsPath, PurePath
-import torch
-from torch.backends import cudnn
-from backbone import EfficientDetBackbone
 from dataclasses import dataclass
+from enum import Flag
+from pathlib import Path, PurePath, PureWindowsPath
+
+import cv2
 import numpy as np
 import onnxruntime
-from efficientdet.utils import BBoxTransform, ClipBoxes
+import torch
+from matplotlib import pyplot as plt
+from pycocotools.coco import COCO
+from torch.backends import cudnn
 
+from backbone import EfficientDetBackbone
+from efficientdet.utils import BBoxTransform, ClipBoxes
 from utils.utils import (
-    preprocess,
-    invert_affine,
-    postprocess,
-    plot_one_box,
     STANDARD_COLORS,
-    standard_to_bgr,
     get_index_label,
+    invert_affine,
+    plot_one_box,
+    postprocess,
+    preprocess,
+    standard_to_bgr,
 )
 
 
@@ -171,7 +172,14 @@ def visualization_pre(
 
 
 def load_onnx(path):
-    ort_session = onnxruntime.InferenceSession(path)
+    if torch.cuda.is_available():
+        ort_session = onnxruntime.InferenceSession(
+            path, None, providers=["CUDAExecutionProvider"]
+        )
+    else:
+        ort_session = onnxruntime.InferenceSession(path, None)
+    print(torch.cuda.is_available())
+    # ort_session = onnxruntime.InferenceSession(path)
     return ort_session
 
 

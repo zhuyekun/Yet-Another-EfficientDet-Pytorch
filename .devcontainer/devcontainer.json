@@ -1,0 +1,47 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.217.2/containers/python-3
+{
+    // Dev container's name.
+    "name": "EfficientDet Dev Container",
+    // Image
+    "image": "zhengma/od:devel",
+    // Features to add
+    "features": {
+        "common": {
+            "username": "vscode",
+            "uid": "automatic",
+            "gid": "automatic",
+            "installZsh": true,
+            "installOhMyZsh": true,
+            "upgradePackages": true,
+            "nonFreePackages": false
+        }
+    },
+    // Set *default* container specific settings.json values on container create.
+    "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "python.defaultInterpreterPath": "/opt/od/bin/python"
+    },
+    // Add the IDs of extensions you want installed when the container is created.
+    "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.pylint",
+        "ms-python.black-formatter",
+        "ms-python.isrot"
+    ],
+    // Runtime args.
+    "runArgs": [
+        "--name=efficientdet",
+        "--gpus=all",
+        "--ipc=host"
+    ],
+    // Volume mount data folder.
+    // "mounts": [
+    //     "source=od_data,target=${containerWorkspaceFolder}/data,type=volume"
+    // ],
+    // Non-root user
+    "remoteUser": "vscode",
+    // Keep container running after disconnect.
+    "shutdownAction": "none"
+}

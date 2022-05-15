@@ -1,3 +1,5 @@
+import time
+import warnings
 from pathlib import Path
 from typing import Union
 
@@ -251,6 +253,7 @@ def eval_onnx(
     iou_threshold,
     use_float16=False,
     input_sizes=[512, 640, 768, 896, 1024, 1280, 1280, 1536],
+    print_fps=False,
 ):
     cudnn.fastest = True
     cudnn.benchmark = True
@@ -267,23 +270,33 @@ def eval_onnx(
     x = np.moveaxis(x, [0, 3, 1, 2], [0, 1, 2, 3])
 
     ort_inputs = {ort_session.get_inputs()[0].name: x}
-    _, _, _, _, _, regression, classification, anchors = ort_session.run(
-        None, ort_inputs
-    )
+    if print_fps:
+        print("model inferring and postprocessing...")
+        t1 = time.time()
+    # _, _, _, _, _, regression, classification, anchors = ort_session.run(
+    #     None, ort_inputs
+    # )
+    regression, classification, anchors = [
+        torch.from_numpy(i) for i in ort_session.run(None, ort_inputs)[-3:]
+    ]
     regressBoxes = BBoxTransform()
     clipBoxes = ClipBoxes()
 
     out = postprocess(
         x,
-        torch.from_numpy(anchors),
-        torch.from_numpy(regression),
-        torch.from_numpy(classification),
+        anchors,
+        regression,
+        classification,
         regressBoxes,
         clipBoxes,
         threshold,
         iou_threshold,
     )
     out = invert_affine(framed_metas, out)
+    if print_fps:
+        t2 = time.time()
+        tact_time = t2 - t1
+        print(f"{tact_time} seconds, {1 / tact_time} FPS, @batch_size 1")
 
     return out, ori_imgs
 

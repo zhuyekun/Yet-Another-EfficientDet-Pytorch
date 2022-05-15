@@ -5,6 +5,11 @@ from absl import app, flags
 from utils_inference import infer_video_onnx, load_onnx, load_yaml
 
 flags.DEFINE_string("config_path", None, "Path to config file.")
+flags.DEFINE_string("video_path", None, "Path to video.")
+flags.DEFINE_string(
+    "exclusion_list", str([]), "Labels you don't want to appear in predictions"
+)
+flags.DEFINE_string("output_path", None, "Path to output dir.")
 # flags.DEFINE_string("output_path", None, "Path to output.")
 
 FLAGS = flags.FLAGS
@@ -16,12 +21,13 @@ def main(unused_argv):
     project_params = load_yaml(config["project_config"])
 
     obj_list = project_params["obj_list"]
-    video_path = config["video_path"]
-    exclusion_list = config["exclusion_list"]
+    video_path = FLAGS.video_path
+    exclusion_list = eval(FLAGS.exclusion_list)
+    # print(exclusion_list)
     input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536, 1536]
     input_size = input_sizes[config["compound_coef"]]
 
-    output_path = Path(config["output_path"])
+    output_path = Path(FLAGS.output_path)
     output_path.mkdir(exist_ok=True, parents=True)
 
     ort_session = load_onnx(config["model_path"])

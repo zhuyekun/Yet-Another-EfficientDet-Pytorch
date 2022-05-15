@@ -1,15 +1,15 @@
-project_config: /home/mazheng/waste-detection/Yet-Another-EfficientDet-Pytorch/inference_tool/projects/0509split.yml
+project_config: projects/0509split.yml
 # Path to project config
-model_path: /home/mazheng/waste-detection/Yet-Another-EfficientDet-Pytorch/inference_tool/weights/efficientdet-d2.onnx
+model_path: weights/efficientdet-d2.onnx
 # Path to onnx model weights
 
-video_path: /home/mazheng/waste-detection/Yet-Another-EfficientDet-Pytorch/inference_tool/examples/videos/ch01_20220214162154.mp4
-# Path to video
-exclusion_list: ["pounding", "spiledmaterial"]
-# Labels you don't want to appear in predictions
+# video_path: /home/mazheng/waste-detection/Yet-Another-EfficientDet-Pytorch/inference_tool/examples/videos/ch01_20220214162154.mp4
+# # Path to video
+# exclusion_list: ["pounding", "spiledmaterial"]
+# # Labels you don't want to appear in predictions
 
-output_path: /home/mazheng/waste-detection/Yet-Another-EfficientDet-Pytorch/inference_tool/output/videos
-# output_dir
+# output_path: /home/mazheng/waste-detection/Yet-Another-EfficientDet-Pytorch/inference_tool/output/videos
+# # output_dir
 threshold: 0.2
 # Score threshold for the output bounding box
 iou_threshold: 0.2

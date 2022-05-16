@@ -1,7 +1,7 @@
 # Path to project config
 project_config: model/v1/0509split.yml
 # Path to onnx model weights
-model_path: model/v1/efficientdet-d2.onnx
+model_path: model/v1/model.onnx
 # Score threshold for the output bounding box
 threshold: 0.2
 # IoU threshold for the output bounding box

@@ -24,9 +24,6 @@ def main(unused_argv):
     obj_list = project_params["obj_list"]
     video_path = FLAGS.video_path
     exclusion_list = eval(FLAGS.exclusion_list)
-    # print(exclusion_list)
-    input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536, 1536]
-    input_size = input_sizes[config["compound_coef"]]
 
     output_path = Path(FLAGS.output_path)
     output_path.mkdir(exist_ok=True, parents=True)
@@ -37,7 +34,7 @@ def main(unused_argv):
         ort_session,
         config["threshold"],
         config["iou_threshold"],
-        input_size,
+        config["compound_coef"],
         obj_list,
         exclusion_list,
         video_path,

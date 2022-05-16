@@ -13,7 +13,7 @@ BATCH_SIZE = 1
 INPUT_SIZES = [512, 640, 768, 896, 1024, 1280, 1280, 1536]
 IMG_SIZE = INPUT_SIZES[COMPOUND_COEF]
 
-CONFIG_PATH = "onnx_inference/projects/0509split.yml"
+CONFIG_PATH = "onnx_inference/model/v1/0509split.yml"
 CKPT_PATH = f"logs/weights/efficientdet-d{COMPOUND_COEF}_125_253500.pth"
 
 
@@ -70,7 +70,7 @@ dummy_input = torch.randn(BATCH_SIZE, 3, IMG_SIZE, IMG_SIZE, device="cuda").to(
 torch.onnx.export(
     model,
     dummy_input,
-    "onnx_inference/model/efficientdet-d2.onnx",
+    "onnx_inference/model/v1/efficientdet-d2.onnx",
     input_names=["images"],
     opset_version=13,
 )

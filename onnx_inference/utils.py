@@ -19,6 +19,7 @@ def read_imgs(*image_path):
     ]
     return ori_imgs
 
+
 def preprocess(
     ori_imgs, max_size=512, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
 ):
@@ -200,6 +201,7 @@ def eval_onnx(
     ori_imgs,
     threshold,
     iou_threshold,
+    logging=True,
     input_sizes=[512, 640, 768, 896, 1024, 1280, 1280, 1536],
 ):
     input_size = input_sizes[compound_coef]
@@ -213,8 +215,9 @@ def eval_onnx(
     x = np.moveaxis(x, [0, 3, 1, 2], [0, 1, 2, 3])
 
     ort_inputs = {ort_session.get_inputs()[0].name: x}
-    print("model inferring and postprocessing...")
-    t0 = time.time()
+    if logging:
+        print("model inferring and postprocessing...")
+        t0 = time.time()
     classification, anchors = ort_session.run(None, ort_inputs)
     out = postprocess(
         x,
@@ -224,8 +227,9 @@ def eval_onnx(
         iou_threshold,
     )
     out = invert_affine(framed_metas, out)
-    dt = time.time() - t0
-    print(f"{dt} seconds, {1 / dt} FPS, @batch_size 1")
+    if logging:
+        dt = time.time() - t0
+        print(f"{dt} seconds, {1 / dt} FPS, @batch_size 1")
 
     return out, imgs
 
@@ -493,7 +497,7 @@ def infer_video_onnx(
     ort_session,
     threshold,
     iou_threshold,
-    input_size,
+    compound_coef,
     obj_list,
     exclusion_list,
     video_src,
@@ -514,8 +518,6 @@ def infer_video_onnx(
     writer = cv2.VideoWriter(
         videoname, fourcc, video_fps, (video_width, video_height), True
     )
-    regressBoxes = BBoxTransform()
-    clipBoxes = ClipBoxes()
 
     pbar = tqdm(total=video_frame_cnt)
     while True:
@@ -523,32 +525,14 @@ def infer_video_onnx(
         if not ret:
             break
 
-        # frame preprocessing
-        ori_imgs, framed_imgs, framed_metas = preprocess_video(
-            frame, max_size=input_size
-        )
-
-        x = np.stack(framed_imgs, 0)
-        x = np.moveaxis(x, [0, 3, 1, 2], [0, 1, 2, 3])
-
-        ort_inputs = {ort_session.get_inputs()[0].name: x}
-        _, _, _, _, _, regression, classification, anchors = ort_session.run(
-            None, ort_inputs
-        )
-        regressBoxes = BBoxTransform()
-        clipBoxes = ClipBoxes()
-
-        out = postprocess(
-            x,
-            torch.from_numpy(anchors),
-            torch.from_numpy(regression),
-            torch.from_numpy(classification),
-            regressBoxes,
-            clipBoxes,
+        out, ori_imgs = eval_onnx(
+            ort_session,
+            compound_coef,
+            frame,
             threshold,
             iou_threshold,
+            logging=False,
         )
-        out = invert_affine(framed_metas, out)
 
         img_show = display_v2(out, ori_imgs, obj_list, exclusion_list=exclusion_list)
         writer.write(img_show)

@@ -201,16 +201,21 @@ def eval_onnx(
     ori_imgs,
     threshold,
     iou_threshold,
+    video_mode=False,
     logging=True,
     input_sizes=[512, 640, 768, 896, 1024, 1280, 1280, 1536],
 ):
     input_size = input_sizes[compound_coef]
-    imgs, framed_imgs, framed_metas = preprocess(
-        ori_imgs,
-        max_size=input_size,
-        mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225],
-    )
+    if video_mode:
+        imgs, framed_imgs, framed_metas = preprocess_video(
+            ori_imgs,
+            max_size=input_size,
+        )
+    else:
+        imgs, framed_imgs, framed_metas = preprocess(
+            ori_imgs,
+            max_size=input_size,
+        )
     x = np.stack(framed_imgs, 0)
     x = np.moveaxis(x, [0, 3, 1, 2], [0, 1, 2, 3])
 
@@ -524,13 +529,14 @@ def infer_video_onnx(
         ret, frame = cap.read()
         if not ret:
             break
-
+        # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         out, ori_imgs = eval_onnx(
             ort_session,
             compound_coef,
             frame,
             threshold,
             iou_threshold,
+            video_mode=True,
             logging=False,
         )
 

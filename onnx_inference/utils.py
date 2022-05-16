@@ -153,6 +153,115 @@ def postprocess(
     return out
 
 
+def nms_np(boxes, scores, overlap_threshold=0.5, min_mode=False):
+    x1 = boxes[:, 0]
+    y1 = boxes[:, 1]
+    x2 = boxes[:, 2]
+    y2 = boxes[:, 3]
+
+    areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+    order = scores.argsort()[::-1]
+
+    keep = []
+    while order.size > 0:
+        keep.append(order[0])
+        xx1 = np.maximum(x1[order[0]], x1[order[1:]])
+        yy1 = np.maximum(y1[order[0]], y1[order[1:]])
+        xx2 = np.minimum(x2[order[0]], x2[order[1:]])
+        yy2 = np.minimum(y2[order[0]], y2[order[1:]])
+
+        w = np.maximum(0.0, xx2 - xx1 + 1)
+        h = np.maximum(0.0, yy2 - yy1 + 1)
+        inter = w * h
+
+        if min_mode:
+            ovr = inter / np.minimum(areas[order[0]], areas[order[1:]])
+        else:
+            ovr = inter / (areas[order[0]] + areas[order[1:]] - inter)
+
+        inds = np.where(ovr <= overlap_threshold)[0]
+        order = order[inds + 1]
+    return keep
+
+
+def batch_nms_np(boxes, scores, idxs, iou_threshold):
+    if len(boxes) == 0:
+        return np.array([])
+    # strategy: in order to perform NMS independently per class.
+    # we add an offset to all the boxes. The offset is dependent
+    # only on the class idx, and is large enough so that boxes
+    # from different classes do not overlap
+    max_coordinate = boxes.max()
+    offsets = idxs * (max_coordinate + 1)
+    boxes_for_nms = boxes + offsets[:, None]
+    keep = nms_np(boxes_for_nms, scores, iou_threshold)
+    return keep
+
+
+def postprocess_np(
+    x,
+    transformed_anchors,
+    classification,
+    threshold,
+    iou_threshold,
+):
+    scores = np.amax(classification, axis=2, keepdims=True)
+    scores_over_thresh = (scores > threshold)[:, :, 0]
+    out = []
+    for i in range(x.shape[0]):
+        if scores_over_thresh[i].sum() == 0:
+            # print(scores_over_thresh[i].sum())
+            out.append(
+                {
+                    "rois": np.array(()),
+                    "class_ids": np.array(()),
+                    "scores": np.array(()),
+                }
+            )
+            continue
+        classification_per = np.moveaxis(
+            classification[i, scores_over_thresh[i, :], ...], 0, 1
+        )
+        transformed_anchors_per = transformed_anchors[i, scores_over_thresh[i, :], ...]
+        scores_per = scores[i, scores_over_thresh[i, :], ...]
+
+        classes_ = np.argmax(classification_per, axis=0)
+        scores_ = np.take_along_axis(
+            classification_per, np.expand_dims(classes_, axis=0), axis=0
+        ).squeeze(axis=0)
+        anchors_nms_idx = np.array(
+            batch_nms_np(
+                transformed_anchors_per,
+                scores_per[:, 0],
+                classes_,
+                iou_threshold=iou_threshold,
+            )
+        )
+
+        if anchors_nms_idx.shape[0] != 0:
+            classes_ = classes_[anchors_nms_idx]
+            scores_ = scores_[anchors_nms_idx]
+            boxes_ = transformed_anchors_per[anchors_nms_idx, :]
+
+            out.append(
+                {
+                    "rois": boxes_,
+                    "class_ids": classes_,
+                    "scores": scores_,
+                }
+            )
+        else:
+            out.append(
+                {
+                    "rois": np.array(()),
+                    "class_ids": np.array(()),
+                    "scores": np.array(()),
+                }
+            )
+
+    return out
+
+
 def preprocess_video(
     *frame_from_video,
     max_size=512,

@@ -2,13 +2,7 @@ from pathlib import Path
 
 from absl import app, flags
 
-from onnx_inference.utils import (
-    display_bbox,
-    eval_onnx,
-    load_onnx,
-    load_yaml,
-    read_imgs,
-)
+from utils import display_bbox, eval_onnx, load_onnx, load_yaml, read_imgs
 
 flags.DEFINE_string("config_path", None, "Path to config file.")
 flags.DEFINE_string("img_path", None, "Path to image or image dir.")

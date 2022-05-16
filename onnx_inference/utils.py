@@ -8,7 +8,6 @@ import torch
 import webcolors
 import yaml
 from matplotlib import pyplot as plt
-from torch.backends import cudnn
 from torchvision.ops.boxes import batched_nms
 from tqdm import tqdm
 

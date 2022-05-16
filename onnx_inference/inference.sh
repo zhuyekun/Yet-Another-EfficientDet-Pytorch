@@ -1,11 +1,10 @@
-
-export CUDA_VISIBLE_DEVICES="0"
+#!/bin/bash
+# export CUDA_VISIBLE_DEVICES="1"
 
 python inference.py \
 --config_path=config/config.yml \
 --img_path=examples/fig \
 --output_path=output/fig
-
 
 # python inference_video.py \
 # --config_path=config/config_video.yml \

@@ -1,16 +1,10 @@
-project_config: projects/0509split.yml
 # Path to project config
-model_path: weights/efficientdet-d2.onnx
+project_config: model/v1/0509split.yml
 # Path to onnx model weights
-
-# img_path: examples/fig/DLLJ1796.jpg
-# # Path to image or image dir
-# output_path: output/fig
-# # output_dir
-
-threshold: 0.2
+model_path: model/v1/efficientdet-d2.onnx
 # Score threshold for the output bounding box
-iou_threshold: 0.2
+threshold: 0.2
 # IoU threshold for the output bounding box
-compound_coef: 2
+iou_threshold: 0.2
 # network param
+compound_coef: 2

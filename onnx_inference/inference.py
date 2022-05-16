@@ -1,7 +1,8 @@
 from pathlib import Path
 
 from absl import app, flags
-from utils_inference import display_bbox, eval_onnx, load_onnx, load_yaml
+
+from utils import display_bbox, eval_onnx, load_onnx, load_yaml, read_imgs
 
 flags.DEFINE_string("config_path", None, "Path to config file.")
 flags.DEFINE_string("img_path", None, "Path to image or image dir.")
@@ -11,7 +12,7 @@ FLAGS = flags.FLAGS
 
 
 def main(unused_argv):
-
+    del unused_argv
     flags.mark_flag_as_required("config_path")
     flags.mark_flag_as_required("img_path")
     flags.mark_flag_as_required("output_path")
@@ -26,32 +27,27 @@ def main(unused_argv):
 
     ort_session = load_onnx(config["model_path"])
     if img_path.is_dir():
-        print_fps = True
-        for i, img in enumerate(img_path.iterdir()):
+        for _, img in enumerate(img_path.iterdir()):
+            imgs = read_imgs(str(img))
             out, ori_imgs = eval_onnx(
                 ort_session,
                 config["compound_coef"],
-                str(img),
+                imgs,
                 config["threshold"],
                 config["iou_threshold"],
-                use_float16=False,
                 input_sizes=[512, 640, 768, 896, 1024, 1280, 1280, 1536],
-                print_fps=print_fps,
             )
             save_path = str(output_path / img.stem) + "_infer.jpg"
             display_bbox(out, ori_imgs, obj_list, save_img=True, save_path=save_path)
-            # if i == 0:
-            #     print_fps = False
     else:
+        imgs = read_imgs(str(img_path))
         out, ori_imgs = eval_onnx(
             ort_session,
             config["compound_coef"],
-            str(img_path),
+            imgs,
             config["threshold"],
             config["iou_threshold"],
-            use_float16=False,
             input_sizes=[512, 640, 768, 896, 1024, 1280, 1280, 1536],
-            print_fps=True,
         )
 
         save_path = str(output_path / img_path.stem) + "_infer.jpg"

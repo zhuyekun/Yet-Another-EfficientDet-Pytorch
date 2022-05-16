@@ -1,13 +1,10 @@
 import time
-import warnings
 from pathlib import Path
-from typing import Union
 
 import cv2
 import numpy as np
 import onnxruntime
 import torch
-import torch.nn as nn
 import webcolors
 import yaml
 from matplotlib import pyplot as plt
@@ -16,59 +13,15 @@ from torchvision.ops.boxes import batched_nms
 from tqdm import tqdm
 
 
-class BBoxTransform(nn.Module):
-    def forward(self, anchors, regression):
-        """
-        decode_box_outputs adapted from https://github.com/google/automl/blob/master/efficientdet/anchors.py
-
-        Args:
-            anchors: [batchsize, boxes, (y1, x1, y2, x2)]
-            regression: [batchsize, boxes, (dy, dx, dh, dw)]
-
-        Returns:
-
-        """
-        y_centers_a = (anchors[..., 0] + anchors[..., 2]) / 2
-        x_centers_a = (anchors[..., 1] + anchors[..., 3]) / 2
-        ha = anchors[..., 2] - anchors[..., 0]
-        wa = anchors[..., 3] - anchors[..., 1]
-
-        w = regression[..., 3].exp() * wa
-        h = regression[..., 2].exp() * ha
-
-        y_centers = regression[..., 0] * ha + y_centers_a
-        x_centers = regression[..., 1] * wa + x_centers_a
-
-        ymin = y_centers - h / 2.0
-        xmin = x_centers - w / 2.0
-        ymax = y_centers + h / 2.0
-        xmax = x_centers + w / 2.0
-
-        return torch.stack([xmin, ymin, xmax, ymax], dim=2)
-
-
-class ClipBoxes(nn.Module):
-    def __init__(self):
-        super(ClipBoxes, self).__init__()
-
-    def forward(self, boxes, img):
-        batch_size, num_channels, height, width = img.shape
-
-        boxes[:, :, 0] = torch.clamp(boxes[:, :, 0], min=0)
-        boxes[:, :, 1] = torch.clamp(boxes[:, :, 1], min=0)
-
-        boxes[:, :, 2] = torch.clamp(boxes[:, :, 2], max=width - 1)
-        boxes[:, :, 3] = torch.clamp(boxes[:, :, 3], max=height - 1)
-
-        return boxes
-
-
-def preprocess(
-    *image_path, max_size=512, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
-):
+def read_imgs(*image_path):
     ori_imgs = [
         cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB) for img_path in image_path
     ]
+    return ori_imgs
+
+def preprocess(
+    ori_imgs, max_size=512, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+):
     # ori_imgs = [cv2.imread(img_path) for img_path in image_path]
     normalized_imgs = [(img / 255 - mean) / std for img in ori_imgs]
     imgs_meta = [
@@ -122,40 +75,33 @@ def aspectaware_resize_padding(image, width, height, interpolation=None, means=N
     )
 
 
-def invert_affine(metas: Union[float, list, tuple], preds):
-    for i in range(len(preds)):
-        if len(preds[i]["rois"]) == 0:
+def invert_affine(metas, preds):
+    for i, pred in enumerate(preds):
+        pred_rios = pred["rois"]
+        if len(pred_rios) == 0:
             continue
         else:
             if metas is float:
-                preds[i]["rois"][:, [0, 2]] = preds[i]["rois"][:, [0, 2]] / metas
-                preds[i]["rois"][:, [1, 3]] = preds[i]["rois"][:, [1, 3]] / metas
+                pred_rios[:, [0, 2]] = pred_rios[:, [0, 2]] / metas
+                pred_rios[:, [1, 3]] = pred_rios[:, [1, 3]] / metas
             else:
-                new_w, new_h, old_w, old_h, padding_w, padding_h = metas[i]
-                preds[i]["rois"][:, [0, 2]] = preds[i]["rois"][:, [0, 2]] / (
-                    new_w / old_w
-                )
-                preds[i]["rois"][:, [1, 3]] = preds[i]["rois"][:, [1, 3]] / (
-                    new_h / old_h
-                )
+                new_w, new_h, old_w, old_h, _, _ = metas[i]
+                pred_rios[:, [0, 2]] = pred_rios[:, [0, 2]] / (new_w / old_w)
+                pred_rios[:, [1, 3]] = pred_rios[:, [1, 3]] / (new_h / old_h)
     return preds
 
 
 def postprocess(
     x,
-    anchors,
-    regression,
+    transformed_anchors,
     classification,
-    regressBoxes,
-    clipBoxes,
     threshold,
     iou_threshold,
 ):
-    transformed_anchors = regressBoxes(anchors, regression)
-    transformed_anchors = clipBoxes(transformed_anchors, x)
+    transformed_anchors = torch.from_numpy(transformed_anchors)
+    classification = torch.from_numpy(classification)
+
     scores = torch.max(classification, dim=2, keepdim=True)[0]
-    # print(scores)
-    # print(scores > threshold)
     scores_over_thresh = (scores > threshold)[:, :, 0]
     out = []
     for i in range(x.shape[0]):
@@ -226,8 +172,9 @@ def preprocess_video(
 
 
 def load_yaml(yaml_path):
-    infer_cfg = open(yaml_path)
-    data = infer_cfg.read()
+    with open(yaml_path) as cfg:
+        data = cfg.read()
+
     yaml_reader = yaml.safe_load(data)
 
     return yaml_reader
@@ -236,69 +183,51 @@ def load_yaml(yaml_path):
 def load_onnx(path):
     if torch.cuda.is_available():
         ort_session = onnxruntime.InferenceSession(
-            path, None, providers=["CUDAExecutionProvider"]
+            path,
+            providers=[
+                # "TensorrtExecutionProvider",
+                "CUDAExecutionProvider",
+            ],
         )
     else:
-        ort_session = onnxruntime.InferenceSession(path, None)
-    # print(torch.cuda.is_available())
-    # ort_session = onnxruntime.InferenceSession(path)
+        ort_session = onnxruntime.InferenceSession(path, "CPUExecutionProvider")
     return ort_session
 
 
 def eval_onnx(
     ort_session,
     compound_coef,
-    img_path,
+    ori_imgs,
     threshold,
     iou_threshold,
-    use_float16=False,
     input_sizes=[512, 640, 768, 896, 1024, 1280, 1280, 1536],
-    print_fps=False,
 ):
-    cudnn.fastest = True
-    cudnn.benchmark = True
     input_size = input_sizes[compound_coef]
-
-    ori_imgs, framed_imgs, framed_metas = preprocess(
-        img_path,
+    imgs, framed_imgs, framed_metas = preprocess(
+        ori_imgs,
         max_size=input_size,
         mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225],
     )
-
     x = np.stack(framed_imgs, 0)
     x = np.moveaxis(x, [0, 3, 1, 2], [0, 1, 2, 3])
 
     ort_inputs = {ort_session.get_inputs()[0].name: x}
-    if print_fps:
-        print("model inferring and postprocessing...")
-        t1 = time.time()
-    # _, _, _, _, _, regression, classification, anchors = ort_session.run(
-    #     None, ort_inputs
-    # )
-    regression, classification, anchors = [
-        torch.from_numpy(i) for i in ort_session.run(None, ort_inputs)[-3:]
-    ]
-    regressBoxes = BBoxTransform()
-    clipBoxes = ClipBoxes()
-
+    print("model inferring and postprocessing...")
+    t0 = time.time()
+    classification, anchors = ort_session.run(None, ort_inputs)
     out = postprocess(
         x,
         anchors,
-        regression,
         classification,
-        regressBoxes,
-        clipBoxes,
         threshold,
         iou_threshold,
     )
     out = invert_affine(framed_metas, out)
-    if print_fps:
-        t2 = time.time()
-        tact_time = t2 - t1
-        print(f"{tact_time} seconds, {1 / tact_time} FPS, @batch_size 1")
+    dt = time.time() - t0
+    print(f"{dt} seconds, {1 / dt} FPS, @batch_size 1")
 
-    return out, ori_imgs
+    return out, imgs
 
 
 def from_colorname_to_bgr(color):
@@ -349,9 +278,6 @@ def display(preds, imgs, obj_list, save_mode=False, save_path=""):
             plt.imshow(imgs[i])
             if save_mode:
                 plt.savefig(save_path)
-
-        # if imshow:
-        #     cv2.imshow("img", imgs[i])
 
 
 def display_bbox(
@@ -573,11 +499,10 @@ def infer_video_onnx(
     video_src,
     output_path,
 ):
-    cudnn.fastest = True
-    cudnn.benchmark = True
     output_path = Path(output_path)
     video_path = Path(video_src)
     videoname = str(output_path / video_path.stem) + "_output.avi"
+
     cap = cv2.VideoCapture(video_src)
 
     video_frame_cnt = int(cap.get(7))

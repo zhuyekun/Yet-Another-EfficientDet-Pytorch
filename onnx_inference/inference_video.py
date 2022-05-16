@@ -1,22 +1,23 @@
 from pathlib import Path
 
-import cv2
 from absl import app, flags
-from utils_inference import infer_video_onnx, load_onnx, load_yaml
+
+from utils import infer_video_onnx, load_onnx, load_yaml
 
 flags.DEFINE_string("config_path", None, "Path to config file.")
 flags.DEFINE_string("video_path", None, "Path to video.")
+flags.DEFINE_string("output_path", None, "Path to output dir.")
 flags.DEFINE_string(
     "exclusion_list", str([]), "Labels you don't want to appear in predictions"
 )
-flags.DEFINE_string("output_path", None, "Path to output dir.")
-# flags.DEFINE_string("output_path", None, "Path to output.")
 
 FLAGS = flags.FLAGS
 
 
 def main(unused_argv):
+    del unused_argv
     flags.mark_flag_as_required("config_path")
+
     config = load_yaml(FLAGS.config_path)
     project_params = load_yaml(config["project_config"])
 

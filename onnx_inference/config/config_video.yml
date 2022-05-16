@@ -1,18 +1,10 @@
-project_config: projects/0509split.yml
 # Path to project config
-model_path: weights/efficientdet-d2.onnx
+project_config: model/v1/0509split.yml
 # Path to onnx model weights
-
-# video_path: /home/mazheng/waste-detection/Yet-Another-EfficientDet-Pytorch/inference_tool/examples/videos/ch01_20220214162154.mp4
-# # Path to video
-# exclusion_list: ["pounding", "spiledmaterial"]
-# # Labels you don't want to appear in predictions
-
-# output_path: /home/mazheng/waste-detection/Yet-Another-EfficientDet-Pytorch/inference_tool/output/videos
-# # output_dir
-threshold: 0.2
+model_path: model/v1/efficientdet-d2.onnx
 # Score threshold for the output bounding box
-iou_threshold: 0.2
+threshold: 0.2
 # IoU threshold for the output bounding box
+iou_threshold: 0.2
+# Network param
 compound_coef: 2
-# network param

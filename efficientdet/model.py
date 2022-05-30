@@ -1,5 +1,5 @@
-import torch.nn as nn
 import torch
+import torch.nn as nn
 from torchvision.ops.boxes import nms as nms_torch
 
 from efficientnet import EfficientNet as EffNet
@@ -507,6 +507,8 @@ class Classifier(nn.Module):
         )
         self.swish = MemoryEfficientSwish() if not onnx_export else Swish()
 
+        self.onnx_export = onnx_export
+
     def forward(self, inputs):
         feats = []
         for feat, bn_list in zip(inputs, self.bn_list):
@@ -529,7 +531,9 @@ class Classifier(nn.Module):
             feats.append(feat)
 
         feats = torch.cat(feats, dim=1)
-        feats = feats.sigmoid()
+
+        if not self.onnx_export:
+            feats = feats.sigmoid()
 
         return feats
 

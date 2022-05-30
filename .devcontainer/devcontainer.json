@@ -3,8 +3,10 @@
 {
     // Dev container's name.
     "name": "EfficientDet Dev Container",
+
     // Image
-    "image": "zhengma/od:devel",
+    "image": "zhengma/od-pytorch:devel",
+
     // Features to add
     "features": {
         "common": {
@@ -17,11 +19,13 @@
             "nonFreePackages": false
         }
     },
+
     // Set *default* container specific settings.json values on container create.
     "settings": {
         "terminal.integrated.defaultProfile.linux": "zsh",
-        "python.defaultInterpreterPath": "/opt/od/bin/python"
+        "python.defaultInterpreterPath": "/usr/local/bin/python"
     },
+
     // Add the IDs of extensions you want installed when the container is created.
     "extensions": [
         "ms-python.python",
@@ -30,18 +34,22 @@
         "ms-python.black-formatter",
         "ms-python.isrot"
     ],
+
     // Runtime args.
     "runArgs": [
         "--name=efficientdet",
         "--gpus=all",
         "--ipc=host"
     ],
+
     // Volume mount data folder.
     // "mounts": [
     //     "source=od_data,target=${containerWorkspaceFolder}/data,type=volume"
     // ],
+
     // Non-root user
     "remoteUser": "vscode",
+
     // Keep container running after disconnect.
     "shutdownAction": "none"
 }

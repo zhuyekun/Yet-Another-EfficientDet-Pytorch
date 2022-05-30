@@ -1,51 +1,29 @@
 # syntax=docker/dockerfile:1
 
-ARG CUDA_MAJOR_VERSION=11
-ARG CUDA_MINOR_VERSION=3
-ARG CUDA_PATCH_VERSION=2
-ARG CUDA_VERSION=${CUDA_MAJOR_VERSION}.${CUDA_MINOR_VERSION}
-ARG CUDNN_MAJOR_VERSION=8
-ARG PYTHON_VERSION=3.9
-ARG CONDAENV=/opt/od
+FROM python:3.9-slim AS build
 
-FROM mambaorg/micromamba AS build
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install --no-install-recommends -y \
+    build-essential gcc cmake \
+    && rm -rf /var/lib/apt/lists/*
 
-ARG CUDA_VERSION
-ARG CUDNN_MAJOR_VERSION
-ARG PYTHON_VERSION
-ARG CONDAENV
-# Use bash to support string substitution.
-SHELL ["/bin/bash", "-c"]
-USER root
-
-# Install conda packages.
-RUN micromamba create -p ${CONDAENV} -y -c conda-forge -c nvidia \
-    python=${PYTHON_VERSION} \
-    pip \
-    cudatoolkit=${CUDA_VERSION} \
-    cudnn=${CUDNN_MAJOR_VERSION} \
-    pycocotools \
+RUN python -m pip install --no-cache-dir --upgrade pip \
+    && python -m pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cu115 \
+    absl-py \
+    matplotlib \
     numpy \
-    tqdm \
+    onnx \
+    onnxruntime-gpu \
+    opencv-python-headless \
+    pycocotools \
+    pyyaml \
     tensorboard \
     tensorboardX \
-    pyyaml \
-    webcolors \
-    onnx \
-    && micromamba clean -ya
-
-RUN ${CONDAENV}/bin/python -m pip install --no-cache-dir --upgrade pip \
-    && ${CONDAENV}/bin/python -m pip install --no-cache-dir \
-    --extra-index-url https://download.pytorch.org/whl/cu113 \
     torch \
     torchvision \
-    opencv-python-headless \
-    onnxruntime-gpu
+    tqdm \
+    webcolors
 
-FROM debian:bullseye-slim
-ARG CONDAENV
+FROM zhengma/python-3-cuda:3.9-11.5
 
-COPY --from=build ${CONDAENV} ${CONDAENV}
-
-ENV PATH=${CONDAENV}/bin:$PATH \
-    LC_ALL=C.UTF-8
+COPY --from=build /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
